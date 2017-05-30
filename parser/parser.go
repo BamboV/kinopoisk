@@ -2,10 +2,12 @@ package parser
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/bamboV/kinopoisk"
+	"strconv"
+	"strings"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding"
 )
 
 const urlFormat = "https://www.kinopoisk.ru/user/%v/movies/list/type/%v/page/%v"
@@ -14,7 +16,7 @@ type Parser struct {
 	User kinopoisk.User
 }
 
-func (p *Parser)ParseFolder(folderId int) ([]kinopoisk.Movie, error) {
+func (p *Parser) ParseFolder(folderId int) ([]kinopoisk.Movie, error) {
 	allMovies := []kinopoisk.Movie{}
 	page := 1
 	for {
@@ -43,17 +45,22 @@ func (p *Parser) parseFolderPage(folderId int, page int) ([]kinopoisk.Movie, err
 	if err != nil {
 		return nil, err
 	}
+	decoder := charmap.Windows1251.NewDecoder()
 
 	document.Find("#itemList").Find("li").Each(func(i int, s *goquery.Selection) {
 		attrId, _ := s.Attr("id")
-
 		id, _ := strconv.Atoi(strings.Trim(attrId, "film_"))
 		infoDiv := s.Find("div.info")
-		translatedName := infoDiv.Find("a.name").Text()
-		name := infoDiv.Find("span").First().Text()
-		movies = append(movies, kinopoisk.Movie{Id:id, Name:name, TranslatedName:translatedName})
+		translatedName := decodeWindows1251(fmt.Sprint(infoDiv.Find("a.name").Text()), *decoder)
+		name := decodeWindows1251(infoDiv.Find("span").First().Text(), *decoder)
+		movies = append(movies, kinopoisk.Movie{Id: id, Name: name, TranslatedName: translatedName})
 
 	})
 
 	return movies, nil
+}
+
+func decodeWindows1251(str string, decoder encoding.Decoder) (string) {
+	res, _ := decoder.String(str)
+	return res
 }
